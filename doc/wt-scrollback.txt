@@ -63,6 +63,11 @@ included, stays as it is:
   profile and zooms it
 - a key binding for that action, see |g:wt_scrollback_keys|
 
+It also turns off Windows Terminal's pane animations ("disableAnimations":
+true), so the pager appears at once instead of sliding up from the bottom
+with its focus border. This is left alone when settings.json already sets
+"disableAnimations" either way.
+
 The helper the pager needs is built right away, so the first scrollback
 opens without waiting for it.
 

@@ -244,9 +244,15 @@ def AppendItem(chars: list<string>, open: number, close: number, item: string): 
 	return [last + 1, close, comma .. keep .. "\n" .. Indent(item, close_indent .. '    ') .. "\n" .. close_indent]
 enddef
 
+# Without animations the pager pane appears at once, instead of sliding up with
+# its focus border from the bottom. Only when it isn't set either way.
+def ChangesAnimations(settings: dict<any>): bool
+	return !settings->has_key('disableAnimations')
+enddef
+
 # settings.json with the pager profile, the action and its key binding added at
-# the end of their lists, so they win over earlier ones. The rest of the file
-# is left as it is.
+# the end of their lists, so they win over earlier ones, and pane animations
+# turned off. The rest of the file is left as it is.
 def AddToSettings(text: string, settings: dict<any>, keys: string): string
 	const crlf = stridx(text, "\r\n") >= 0
 	var chars = split(crlf ? substitute(text, "\r\n", "\n", 'g') : text, '\zs')
@@ -268,13 +274,21 @@ def AddToSettings(text: string, settings: dict<any>, keys: string): string
 		throw 'no profiles list'
 	endif
 
+	# New top level entries
+	var root_items: list<string> = []
 	const action = ActionJson(separate_keys ? '' : keys)
 	if found->has_key('.actions')
 		const [o, c] = found['.actions']
 		edits->add(AppendItem(chars, o, c, action))
 	else
+		root_items->add("\"actions\":\n[\n" .. Indent(action, '    ') .. "\n],")
+	endif
+	if ChangesAnimations(settings)
+		root_items->add('"disableAnimations": true,')
+	endif
+	if !empty(root_items)
 		const root = found[''][0]
-		edits->add([root + 1, root + 1, "\n" .. Indent("\"actions\":\n[\n" .. Indent(action, '    ') .. "\n],", '    ')])
+		edits->add([root + 1, root + 1, "\n" .. Indent(join(root_items, "\n"), '    ')])
 	endif
 	if separate_keys && found->has_key('.keybindings')
 		const [o, c] = found['.keybindings']
@@ -332,7 +346,8 @@ export def Setup(forced: bool)
 		endif
 		return
 	endif
-	if IsConfigured(Decode(readfile(file, 'b')->join("\n")))
+	const settings = Decode(readfile(file, 'b')->join("\n"))
+	if IsConfigured(settings)
 		if forced
 			echomsg $'wt-scrollback.vim: {fnamemodify(file, ':~')} already uses it'
 		endif
@@ -342,7 +357,8 @@ export def Setup(forced: bool)
 		return
 	endif
 	const choice = confirm("wt-scrollback.vim: Use Vim as Windows Terminal's scrollback pager?\n"
-		.. $"This adds an action, a key binding and a profile to {fnamemodify(file, ':~')}.",
+		.. $"This adds an action, a key binding and a profile to {fnamemodify(file, ':~')}"
+		.. (ChangesAnimations(settings) ? "\nand turns off pane animations." : '.'),
 		"&Yes\n&No\nNever &ask again", 1, 'Question')
 	if choice == 1
 		Configure(file)

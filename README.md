@@ -24,7 +24,9 @@ Plug 'jclsn/wt-scrollback.vim'
 The next time Vim starts inside Windows Terminal, it offers to configure
 Windows Terminal for you. Choosing **Yes** backs up `settings.json` and adds a
 hidden pager profile, an action and a key binding for it; Windows Terminal
-picks the change up by itself. Run `:WtScrollbackSetup` to do this at any time.
+picks the change up by itself. Unless you already set `disableAnimations`, it
+also turns off pane animations, so the pager appears at once instead of sliding
+up from the bottom. Run `:WtScrollbackSetup` to do this at any time.
 
 Nothing happens outside Windows Terminal or when there is no `settings.json`.
 
@@ -32,6 +34,7 @@ To configure it by hand, add this to `settings.json` (with the paths of your
 Vim and of this plugin):
 
 ```jsonc
+"disableAnimations": true,
 "actions": [
     {
         "command": {
