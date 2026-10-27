@@ -17,6 +17,8 @@ vim9script
 # would otherwise leave Vim in compatible mode.
 
 set encoding=utf-8
+# Nothing to remember from or for the scrollback
+set viminfo=
 
 import './autoload/wt_scrollback.vim'
 
@@ -158,5 +160,7 @@ def CopyToClipboard()
 	endif
 enddef
 
-autocmd VimEnter * ++once Start()
 autocmd TextYankPost * CopyToClipboard()
+
+# Right away instead of on VimEnter, the helper runs while Vim starts up
+Start()

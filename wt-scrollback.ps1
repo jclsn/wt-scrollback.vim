@@ -191,8 +191,39 @@ public static class WtScrollback
     class Run { public string Text; public string Tag; public Run(string t, string g) { Text = t; Tag = g; } }
 
     static readonly Dictionary<string, Style> parsed = new Dictionary<string, Style>();
-    static readonly Regex token = new Regex("<(/?)(SPAN|BR|DIV)\\b([^>]*)>|([^<]+)", RegexOptions.IgnoreCase);
     static readonly Regex styleAttr = new Regex("STYLE=\"([^\"]*)\"", RegexOptions.IgnoreCase);
+
+    // Is html[i..] the tag name "name" (case insensitive, not followed by a letter)?
+    static bool IsTag(string html, int i, int end, string name)
+    {
+        return end - i >= name.Length && string.Compare(html, i, name, 0, name.Length, StringComparison.OrdinalIgnoreCase) == 0
+            && (end - i == name.Length || !char.IsLetter(html[i + name.Length]));
+    }
+
+    // The few entities Windows Terminal writes, plus numeric ones
+    static string Decode(string text)
+    {
+        if (text.IndexOf('&') < 0) return text;
+        var sb = new StringBuilder(text.Length);
+        for (int i = 0; i < text.Length; i++)
+        {
+            int semi = text[i] == '&' ? text.IndexOf(';', i) : -1;
+            if (semi < 0 || semi - i > 10) { sb.Append(text[i]); continue; }
+            string name = text.Substring(i + 1, semi - i - 1);
+            int code;
+            if (name == "lt") sb.Append('<');
+            else if (name == "gt") sb.Append('>');
+            else if (name == "amp") sb.Append('&');
+            else if (name == "quot") sb.Append('"');
+            else if (name == "apos") sb.Append('\'');
+            else if (name == "nbsp") sb.Append(' ');
+            else if (name.StartsWith("#x") && int.TryParse(name.Substring(2), System.Globalization.NumberStyles.HexNumber, null, out code)) sb.Append(char.ConvertFromUtf32(code));
+            else if (name.StartsWith("#") && int.TryParse(name.Substring(1), out code)) sb.Append(char.ConvertFromUtf32(code));
+            else { sb.Append(text[i]); continue; }
+            i = semi;
+        }
+        return sb.ToString();
+    }
 
     static Style ParseStyle(string tag)
     {
@@ -228,20 +259,29 @@ public static class WtScrollback
         var rows = new List<List<Run>> { new List<Run>() };
         var chars = new Dictionary<string, int>();
         string tag = "", defFg = "", defBg = "";
-        for (Match m = token.Match(html); m.Success; m = m.NextMatch())
+        for (int pos = 0; pos < html.Length; )
         {
-            if (m.Groups[4].Success)
+            int lt = html.IndexOf('<', pos);
+            int textEnd = lt < 0 ? html.Length : lt;
+            if (textEnd > pos)
             {
-                string text = System.Net.WebUtility.HtmlDecode(m.Groups[4].Value);
+                string text = Decode(html.Substring(pos, textEnd - pos));
                 rows[rows.Count - 1].Add(new Run(text, tag));
                 int n; chars.TryGetValue(tag, out n); chars[tag] = n + text.Length;
-                continue;
             }
-            string name = m.Groups[2].Value.ToUpperInvariant();
-            bool close = m.Groups[1].Value == "/";
-            if (name == "BR") rows.Add(new List<Run>());
-            else if (name == "SPAN") tag = close ? "" : m.Groups[3].Value;
-            else if (name == "DIV" && !close) { var div = ParseStyle(m.Groups[3].Value); defFg = div.Fg; defBg = div.Bg; }
+            if (lt < 0) break;
+            int gt = html.IndexOf('>', lt);
+            if (gt < 0) break;
+            bool close = html[lt + 1] == '/';
+            int name = close ? lt + 2 : lt + 1;
+            if (IsTag(html, name, gt, "BR")) rows.Add(new List<Run>());
+            else if (IsTag(html, name, gt, "SPAN")) tag = close ? "" : html.Substring(name + 4, gt - name - 4);
+            else if (IsTag(html, name, gt, "DIV") && !close)
+            {
+                var div = ParseStyle(html.Substring(name + 3, gt - name - 3));
+                defFg = div.Fg; defBg = div.Bg;
+            }
+            pos = gt + 1;
         }
 
         // The DIV usually only carries the background; take the most used fg on it.
