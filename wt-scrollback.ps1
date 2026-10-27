@@ -284,20 +284,31 @@ public static class WtScrollback
             pos = gt + 1;
         }
 
-        // The DIV usually only carries the background; take the most used fg on it.
-        if (defFg == "")
+        // Vim's background is the one most of the captured cells have, which is
+        // not the terminal's when e.g. a full screen program filled the screen
+        // with its own. Text without colors of its own uses the DIV's.
+        string divFg = defFg, divBg = defBg;
+        Func<string, string> fgOf = t => { string c = ParseStyle(t).Fg; return c == "" ? divFg : c; };
+        Func<string, string> bgOf = t => { string c = ParseStyle(t).Bg; return c == "" ? divBg : c; };
+        var bgCount = new Dictionary<string, int>();
+        foreach (var kv in chars)
         {
-            var count = new Dictionary<string, int>();
-            foreach (var kv in chars)
-            {
-                var s = ParseStyle(kv.Key);
-                if (s.Bg == defBg && s.Fg != "") { int n; count.TryGetValue(s.Fg, out n); count[s.Fg] = n + kv.Value; }
-            }
-            int most = 0;
-            foreach (var kv in count) if (kv.Value > most) { most = kv.Value; defFg = kv.Key; }
+            int n; bgCount.TryGetValue(bgOf(kv.Key), out n); bgCount[bgOf(kv.Key)] = n + kv.Value;
         }
+        int most = bgCount.ContainsKey(divBg) ? bgCount[divBg] : 0;
+        foreach (var kv in bgCount) if (kv.Value > most && kv.Key != "") { most = kv.Value; defBg = kv.Key; }
 
-        // Style tag -> index into styles (-1: terminal default, no highlight).
+        // And the foreground most used on that background
+        var fgCount = new Dictionary<string, int>();
+        foreach (var kv in chars)
+        {
+            if (bgOf(kv.Key) != defBg || fgOf(kv.Key) == "") continue;
+            int n; fgCount.TryGetValue(fgOf(kv.Key), out n); fgCount[fgOf(kv.Key)] = n + kv.Value;
+        }
+        most = 0;
+        foreach (var kv in fgCount) if (kv.Value > most) { most = kv.Value; defFg = kv.Key; }
+
+        // Style tag -> index into styles (-1: default colors, no highlight).
         var styles = new List<Style>();
         var index = new Dictionary<string, int>();
         var byKey = new Dictionary<string, int>();
@@ -306,7 +317,8 @@ public static class WtScrollback
             int idx;
             if (index.TryGetValue(t, out idx)) return idx;
             var raw = ParseStyle(t);
-            var s = new Style { Fg = raw.Fg == defFg ? "" : raw.Fg, Bg = raw.Bg == defBg ? "" : raw.Bg,
+            string fg = fgOf(t), bg = bgOf(t);
+            var s = new Style { Fg = fg == defFg ? "" : fg, Bg = bg == defBg ? "" : bg,
                                 Bold = raw.Bold, Italic = raw.Italic, Underline = raw.Underline, Strike = raw.Strike };
             if (s.IsDefault) idx = -1;
             else if (!byKey.TryGetValue(s.Key, out idx)) { styles.Add(s); idx = byKey[s.Key] = styles.Count - 1; }

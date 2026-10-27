@@ -104,7 +104,10 @@ opens the pager in a new pane that it zooms.
 
 The pager runs a small helper that reads that HTML from the clipboard and
 turns it into lines and highlight ranges, which the pager applies as
-|text-properties|. The helper also reads the cursor and the visible rows of
+|text-properties|. Vim's background is the one most of the captured cells
+have, and its foreground the one most used on it. That is the terminal's
+own unless a program like Vim filled the screen with its own background, so
+the space around and after the text always matches the screen. The helper also reads the cursor and the visible rows of
 the other panes of the same Windows Terminal process: every pane is a
 console, and its buffer mirrors what the pane shows. The pane whose rows
 match the end of the copied text is the one the pager was opened from; its
