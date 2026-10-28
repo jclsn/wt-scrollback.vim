@@ -8,6 +8,7 @@
 #   - reads cursor + visible rows of the other panes' consoles (each pane is a
 #     ConPTY whose buffer mirrors the pane's viewport) to find the pane we came
 #     from and where its cursor was,
+#   - reads the profile of that pane (WT_PROFILE_ID in its shell's environment),
 #   - turns all of it into lines + highlight ranges for vim (JSON).
 #
 # This needs Win32 calls, switching consoles kills the PowerShell host, and
@@ -122,7 +123,57 @@ public static class WtScrollback
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)] public string szExeFile;
     }
 
-    class Pane { public int Width, CursorX, CursorY; public string[] Rows; }
+    [DllImport("kernel32.dll")] static extern IntPtr OpenProcess(uint access, bool inherit, uint pid);
+    [DllImport("kernel32.dll")] static extern bool ReadProcessMemory(IntPtr proc, IntPtr addr, byte[] buf, IntPtr size, out IntPtr read);
+    [DllImport("ntdll.dll")] static extern int NtQueryInformationProcess(IntPtr proc, int cls, ref PROCESS_BASIC_INFORMATION info, int size, out int len);
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct PROCESS_BASIC_INFORMATION { public IntPtr ExitStatus, PebBaseAddress, AffinityMask, BasePriority, UniqueProcessId, InheritedFromUniqueProcessId; }
+
+    class Pane { public int Width, CursorX, CursorY; public string[] Rows; public string Profile; }
+
+    static byte[] ReadMemory(IntPtr proc, IntPtr addr, int size)
+    {
+        var buf = new byte[size];
+        IntPtr read;
+        if (!ReadProcessMemory(proc, addr, buf, new IntPtr(size), out read)) return null;
+        return buf;
+    }
+
+    static IntPtr ReadPointer(IntPtr proc, IntPtr addr)
+    {
+        byte[] buf = ReadMemory(proc, addr, IntPtr.Size);
+        if (buf == null) return IntPtr.Zero;
+        return IntPtr.Size == 8 ? new IntPtr(BitConverter.ToInt64(buf, 0)) : new IntPtr(BitConverter.ToInt32(buf, 0));
+    }
+
+    // Windows Terminal puts the guid of a pane's profile into the environment of
+    // the process it starts in it: PEB -> process parameters -> environment.
+    static string ProfileOf(int pid)
+    {
+        IntPtr proc = OpenProcess(0x1010, false, (uint)pid); // QUERY_LIMITED_INFORMATION | VM_READ
+        if (proc == IntPtr.Zero) return "";
+        try
+        {
+            var info = new PROCESS_BASIC_INFORMATION();
+            int len;
+            if (NtQueryInformationProcess(proc, 0, ref info, Marshal.SizeOf(info), out len) != 0) return "";
+            bool x64 = IntPtr.Size == 8;
+            IntPtr parameters = ReadPointer(proc, info.PebBaseAddress + (x64 ? 0x20 : 0x10));
+            if (parameters == IntPtr.Zero) return "";
+            IntPtr env = ReadPointer(proc, parameters + (x64 ? 0x80 : 0x48));
+            byte[] sizeBuf = ReadMemory(proc, parameters + (x64 ? 0x3F0 : 0x290), IntPtr.Size);
+            if (env == IntPtr.Zero || sizeBuf == null) return "";
+            int size = (int)Math.Min(x64 ? BitConverter.ToInt64(sizeBuf, 0) : BitConverter.ToInt32(sizeBuf, 0), 1 << 20);
+            byte[] block = ReadMemory(proc, env, size);
+            if (block == null) return "";
+            foreach (string entry in Encoding.Unicode.GetString(block).Split('\0'))
+                if (entry.StartsWith("WT_PROFILE_ID=", StringComparison.OrdinalIgnoreCase))
+                    return entry.Substring("WT_PROFILE_ID=".Length);
+            return "";
+        }
+        finally { CloseHandle(proc); }
+    }
 
     // The other shells started by the Windows Terminal process that started vim.
     static int[] SiblingShells(int vimPid)
@@ -159,7 +210,8 @@ public static class WtScrollback
             {
                 var win = info.Window;
                 var pane = new Pane { Width = win.Right - win.Left + 1, CursorX = info.Cursor.X - win.Left,
-                                      CursorY = info.Cursor.Y - win.Top, Rows = new string[win.Bottom - win.Top + 1] };
+                                      CursorY = info.Cursor.Y - win.Top, Rows = new string[win.Bottom - win.Top + 1],
+                                      Profile = ProfileOf(pid) };
                 var buf = new char[pane.Width];
                 for (int y = 0; y < pane.Rows.Length; y++)
                 {
@@ -366,7 +418,8 @@ public static class WtScrollback
 
         int[] cursor = null;
         int topline = 0;
-        Locate(lines, panes, ref cursor, ref topline);
+        string profile = null;
+        Locate(lines, panes, ref cursor, ref topline, ref profile);
 
         var json = new StringBuilder("{\"fg\":");
         Str(json, defFg).Append(",\"bg\":");
@@ -390,13 +443,14 @@ public static class WtScrollback
         if (cursor != null)
             json.Append(",\"cursor\":[").Append(cursor[0]).Append(',').Append(cursor[1])
                 .Append("],\"topline\":").Append(topline);
+        if (!string.IsNullOrEmpty(profile)) Str(json.Append(",\"profile\":"), profile);
         return json.Append('}').ToString();
     }
 
     // ---- Cursor position ---------------------------------------------------
     // Find the pane whose visible rows match the end of `lines` and map its
     // cursor into `lines` (1-based line, screen column) plus the line at its top.
-    static void Locate(List<string> lines, List<Pane> panes, ref int[] cursor, ref int topline)
+    static void Locate(List<string> lines, List<Pane> panes, ref int[] cursor, ref int topline, ref string profile)
     {
         double bestScore = -1;
         int bestTop = 0;
@@ -448,6 +502,7 @@ public static class WtScrollback
             while (lines.Count <= lnum) lines.Add("");
         }
         cursor = new[] { lnum + 1, offset + best.CursorX + 1 };
+        profile = best.Profile;
         topline = bestTop < bestRows.Count ? bestRows[bestTop][0] + 1 : lnum + 1;
     }
 

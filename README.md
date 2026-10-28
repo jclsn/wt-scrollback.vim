@@ -101,5 +101,7 @@ Windows Terminal has no scrollback pager setting, so the action copies the
 whole buffer as HTML (the only export that keeps the colors) and opens the
 pager. A small helper, compiled once from `wt-scrollback.ps1` into
 `%LOCALAPPDATA%\wt-scrollback.vim`, reads that HTML from the clipboard and
-finds the cursor by reading the other panes' consoles. See
+finds the cursor by reading the other panes' consoles. The pager profile's
+font size follows the profile of the pane you came from; when it differs, the
+pager updates `settings.json` and Windows Terminal applies it right away. See
 `:help wt-scrollback-internals`.

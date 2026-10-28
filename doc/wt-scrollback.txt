@@ -22,6 +22,7 @@ ctrl+shift+h) in Vim so it looks exactly like the pane you were just on:
 
 - every cell keeps the colors and attributes the terminal used, including
   true color, bold, italic, underline and strikethrough
+- the font size is the one of the pane's profile
 - the first line on the pane's screen is the first line in Vim
 - the cursor sits on the same cell it was on in the pane, also when a
   program like Vim was running there
@@ -114,6 +115,13 @@ match the end of the copied text is the one the pager was opened from; its
 first visible row becomes the first line in the window and its cursor the
 cursor in Vim. When no pane matches, the pager shows the end of the
 scrollback.
+
+The pager also uses the font size of the pane's profile, which Windows
+Terminal puts into the environment of the shell it starts (WT_PROFILE_ID).
+When the "wt-scrollback.vim" profile's size differs, the pager sets it in
+settings.json, and Windows Terminal applies it to the open pager right away.
+So after changing a profile's font size, the next scrollback adjusts by
+itself, and settings.json is only written when the size actually changes.
 
 The helper needs Win32 calls Vim script can't make and has to parse
 megabytes of HTML quickly. Its C# source is in wt-scrollback.ps1, which

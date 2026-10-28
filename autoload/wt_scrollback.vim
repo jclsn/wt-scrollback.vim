@@ -151,9 +151,10 @@ def KeybindingJson(keys: string): string
 enddef
 
 # Positions (character indexes) of the "[" or "{" and the matching bracket of
-# every container, by path (".actions", ".profiles.list", ...)
-def Containers(chars: list<string>): dict<list<number>>
-	var found: dict<list<number>> = {}
+# every container, by path (".actions", ".profiles.list", ".profiles.list[]",
+# ...), in the order they appear
+def AllContainers(chars: list<string>): dict<list<list<number>>>
+	var found: dict<list<list<number>>> = {}
 	var stack: list<dict<any>> = []
 	var last_string = ''
 	var i = 0
@@ -192,12 +193,18 @@ def Containers(chars: list<string>): dict<list<number>>
 		elseif (c == '}' || c == ']') && !empty(stack)
 			const top = stack->remove(-1)
 			if !found->has_key(top.path)
-				found[top.path] = [top.start, i]
+				found[top.path] = []
 			endif
+			found[top.path]->add([top.start, i])
 		endif
 		i += 1
 	endwhile
 	return found
+enddef
+
+# Like AllContainers(), only the first container of each path
+def Containers(chars: list<string>): dict<list<number>>
+	return AllContainers(chars)->map((_, v) => v[0])
 enddef
 
 # Index of the last character between "open" and "close" that isn't
@@ -299,6 +306,79 @@ def AddToSettings(text: string, settings: dict<any>, keys: string): string
 		chars = (start > 0 ? chars[: start - 1] : []) + split(replacement, '\zs') + chars[end :]
 	endfor
 	return crlf ? substitute(join(chars, ''), "\n", "\r\n", 'g') : join(chars, '')
+enddef
+
+# A profile's font size as Windows Terminal resolves it
+def FontSize(profile: dict<any>, defaults: dict<any>): float
+	for p in [profile, defaults]
+		const font = get(p, 'font', {})
+		if type(font) == v:t_dict && font->has_key('size')
+			return 0.0 + font.size
+		elseif p->has_key('fontSize')
+			return 0.0 + p.fontSize
+		endif
+	endfor
+	return 12.0
+enddef
+
+# settings.json with the font size of the pager profile set to "size"
+def SetFontSize(text: string, size: float): string
+	const crlf = stridx(text, "\r\n") >= 0
+	var chars = split(crlf ? substitute(text, "\r\n", "\n", 'g') : text, '\zs')
+	const all = AllContainers(chars)
+	const value = size == trunc(size) ? string(float2nr(size)) : string(size)
+	const guid = '"guid"\_s*:\_s*"' .. PROFILE_GUID .. '"'
+	for path in ['.profiles.list[]', '.profiles[]']
+		for [o, c] in get(all, path, [])
+			if join(chars[o : c], '') !~? guid
+				continue
+			endif
+			var edit: list<any>
+			const fonts = get(all, path .. '.font', [])->copy()->filter((_, f) => f[0] > o && f[1] < c)
+			if empty(fonts)
+				edit = AppendItem(chars, o, c, $'"font": {{ "size": {value} }}')
+			else
+				const [fo, fc] = fonts[0]
+				const font = join(chars[fo : fc], '')
+				const [_, start, end] = matchstrpos(font, '"size"\_s*:\_s*\zs[-+0-9.eE]\+')
+				edit = start < 0 ? AppendItem(chars, fo, fc, $'"size": {value}')
+					: [fo + charidx(font, start), fo + charidx(font, end), value]
+			endif
+			const [start, end, replacement] = edit
+			chars = chars[: start - 1] + split(replacement, '\zs') + chars[end :]
+			return crlf ? substitute(join(chars, ''), "\n", "\r\n", 'g') : join(chars, '')
+		endfor
+	endfor
+	throw 'no pager profile'
+enddef
+
+# Gives the pager profile the font size of the profile with the guid "source",
+# so the scrollback looks like the pane it was opened from. Windows Terminal
+# applies the change to the open pager right away.
+export def SyncFontSize(source: string)
+	const file = SettingsFile()
+	if empty(source) || empty(file)
+		return
+	endif
+	const text = readfile(file, 'b')->join("\n")
+	const settings = Decode(text)
+	var profiles = get(settings, 'profiles', [])
+	var defaults: dict<any> = {}
+	if type(profiles) == v:t_dict
+		defaults = get(profiles, 'defaults', {})
+		profiles = get(profiles, 'list', [])
+	endif
+	const ByGuid = (guid) => profiles->copy()->filter((_, p) => type(p) == v:t_dict && get(p, 'guid', '') ==? guid)->get(0, {})
+	const pager = ByGuid(PROFILE_GUID)
+	const size = FontSize(ByGuid(source), defaults)
+	if empty(pager) || source ==? PROFILE_GUID || FontSize(pager, defaults) == size
+		return
+	endif
+	try
+		writefile(split(SetFontSize(text, size), "\n", true), file, 'b')
+	catch
+		echomsg $'wt-scrollback.vim: Could not set the font size: {v:exception}'
+	endtry
 enddef
 
 def Configure(file: string)
