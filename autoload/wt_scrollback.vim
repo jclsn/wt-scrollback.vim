@@ -204,7 +204,7 @@ enddef
 
 # Like AllContainers(), only the first container of each path
 def Containers(chars: list<string>): dict<list<number>>
-	return AllContainers(chars)->map((_, v) => v[0])
+	return AllContainers(chars)->mapnew((_, v) => v[0])
 enddef
 
 # Index of the last character between "open" and "close" that isn't
@@ -388,6 +388,11 @@ def Configure(file: string)
 		echoerr $'wt-scrollback.vim: Could not read {file}'
 		return
 	endif
+	# Something else may have written the file since Setup() read it
+	if IsConfigured(settings)
+		echomsg $'wt-scrollback.vim: {fnamemodify(file, ':~')} already uses it'
+		return
+	endif
 	var result: string
 	try
 		result = AddToSettings(text, settings, get(g:, 'wt_scrollback_keys', 'ctrl+shift+h'))
@@ -427,6 +432,14 @@ export def Setup(forced: bool)
 		return
 	endif
 	const settings = Decode(readfile(file, 'b')->join("\n"))
+	# Unreadable, e.g. while Windows Terminal is writing it: there is no telling
+	# whether it's configured, so don't offer to
+	if empty(settings)
+		if forced
+			echomsg $'wt-scrollback.vim: Could not read {fnamemodify(file, ':~')}'
+		endif
+		return
+	endif
 	if IsConfigured(settings)
 		if forced
 			echomsg $'wt-scrollback.vim: {fnamemodify(file, ':~')} already uses it'
