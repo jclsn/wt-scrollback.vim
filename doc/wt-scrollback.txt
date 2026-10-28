@@ -22,7 +22,7 @@ ctrl+shift+h) in Vim so it looks exactly like the pane you were just on:
 
 - every cell keeps the colors and attributes the terminal used, including
   true color, bold, italic, underline and strikethrough
-- the font size is the one of the pane's profile
+- the font size is the pane's, also when it was zoomed
 - the first line on the pane's screen is the first line in Vim
 - the cursor sits on the same cell it was on in the pane, also when a
   program like Vim was running there
@@ -122,6 +122,12 @@ When the "wt-scrollback.vim" profile's size differs, the pager sets it in
 settings.json, and Windows Terminal applies it to the open pager right away.
 So after changing a profile's font size, the next scrollback adjusts by
 itself, and settings.json is only written when the size actually changes.
+
+Zooming a pane (ctrl+=, ctrl+mouse wheel) isn't saved anywhere, but it
+changes how many cells fit into the pane. So the pager compares the pane's
+columns and rows with its own and works out the zoomed size from that. When
+the pane didn't fill the tab (it was split side by side, say), its size
+tells nothing and the profile's size is used.
 
 The helper needs Win32 calls Vim script can't make and has to parse
 megabytes of HTML quickly. Its C# source is in wt-scrollback.ps1, which

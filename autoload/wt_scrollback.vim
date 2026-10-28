@@ -352,12 +352,35 @@ def SetFontSize(text: string, size: float): string
 	throw 'no pager profile'
 enddef
 
-# Gives the pager profile the font size of the profile with the guid "source",
-# so the scrollback looks like the pane it was opened from. Windows Terminal
-# applies the change to the open pager right away.
-export def SyncFontSize(source: string)
+# The font size of a pane that is "pane" ([columns, rows]) cells large, judged
+# by the pager, which uses "current" and is "own" cells large. Zooming (ctrl+=,
+# ctrl+wheel) isn't saved anywhere, but it changes the cell size and so how
+# many cells fit. "profile" is the size the pane's profile sets; it wins when
+# the pane isn't zoomed. -1 when the sizes don't tell: the pane didn't fill the
+# tab's width or height (more splits), or the pager isn't zoomed yet.
+def ZoomedSize(current: float, profile: float, pane: list<number>, own: list<number>): float
+	if len(pane) != 2 || min(pane + own) <= 0
+		return -1.0
+	endif
+	# Cell size of the pane relative to the pager's. Splitting the pane off
+	# may already have taken 20% of its rows, so the height only rules out
+	# other layouts.
+	const width = 1.0 * own[0] / pane[0]
+	const height = 1.0 * own[1] / pane[1]
+	if width / height < 0.72 || width / height > 1.08
+		return -1.0
+	endif
+	const size = current * width
+	return abs(size - profile) < 0.5 ? profile : round(size)
+enddef
+
+# Gives the pager profile the font size of the pane it was opened from, so the
+# scrollback looks like that pane: the size of the pane's profile (guid
+# "source"), or the zoomed size when "pane" ([columns, rows]) shows the pane
+# was zoomed. Windows Terminal applies the change to the open pager right away.
+export def SyncFontSize(source: string, pane: list<number> = [])
 	const file = SettingsFile()
-	if empty(source) || empty(file)
+	if (empty(source) && empty(pane)) || empty(file)
 		return
 	endif
 	const text = readfile(file, 'b')->join("\n")
@@ -370,8 +393,14 @@ export def SyncFontSize(source: string)
 	endif
 	const ByGuid = (guid) => profiles->copy()->filter((_, p) => type(p) == v:t_dict && get(p, 'guid', '') ==? guid)->get(0, {})
 	const pager = ByGuid(PROFILE_GUID)
-	const size = FontSize(ByGuid(source), defaults)
-	if empty(pager) || source ==? PROFILE_GUID || FontSize(pager, defaults) == size
+	if empty(pager) || source ==? PROFILE_GUID
+		return
+	endif
+	const current = FontSize(pager, defaults)
+	const profile = FontSize(ByGuid(source), defaults)
+	const zoomed = ZoomedSize(current, profile, pane, [&columns, &lines])
+	const size = zoomed > 0 ? zoomed : profile
+	if size == current
 		return
 	endif
 	try

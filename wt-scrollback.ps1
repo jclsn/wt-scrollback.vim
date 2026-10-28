@@ -419,7 +419,8 @@ public static class WtScrollback
         int[] cursor = null;
         int topline = 0;
         string profile = null;
-        Locate(lines, panes, ref cursor, ref topline, ref profile);
+        int[] size = null;
+        Locate(lines, panes, ref cursor, ref topline, ref profile, ref size);
 
         var json = new StringBuilder("{\"fg\":");
         Str(json, defFg).Append(",\"bg\":");
@@ -444,13 +445,15 @@ public static class WtScrollback
             json.Append(",\"cursor\":[").Append(cursor[0]).Append(',').Append(cursor[1])
                 .Append("],\"topline\":").Append(topline);
         if (!string.IsNullOrEmpty(profile)) Str(json.Append(",\"profile\":"), profile);
+        if (size != null) json.Append(",\"size\":[").Append(size[0]).Append(',').Append(size[1]).Append(']');
         return json.Append('}').ToString();
     }
 
     // ---- Cursor position ---------------------------------------------------
     // Find the pane whose visible rows match the end of `lines` and map its
-    // cursor into `lines` (1-based line, screen column) plus the line at its top.
-    static void Locate(List<string> lines, List<Pane> panes, ref int[] cursor, ref int topline, ref string profile)
+    // cursor into `lines` (1-based line, screen column) plus the line at its top,
+    // its profile and its size in cells.
+    static void Locate(List<string> lines, List<Pane> panes, ref int[] cursor, ref int topline, ref string profile, ref int[] size)
     {
         double bestScore = -1;
         int bestTop = 0;
@@ -503,6 +506,7 @@ public static class WtScrollback
         }
         cursor = new[] { lnum + 1, offset + best.CursorX + 1 };
         profile = best.Profile;
+        size = new[] { best.Width, best.Rows.Length };
         topline = bestTop < bestRows.Count ? bestRows[bestTop][0] + 1 : lnum + 1;
     }
 

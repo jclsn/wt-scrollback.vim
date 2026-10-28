@@ -143,7 +143,7 @@ def Load()
 	setlocal buftype=nofile bufhidden=hide noswapfile nomodified nomodifiable
 	RestoreView(data)
 	redraw!
-	wt_scrollback.SyncFontSize(get(data, 'profile', ''))
+	wt_scrollback.SyncFontSize(get(data, 'profile', ''), get(data, 'size', []))
 enddef
 
 def Start()
