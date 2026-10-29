@@ -20,3 +20,13 @@ Windows Terminal's `settings.json`.
 
 `ctrl+shift+h` opens the scrollback, `q` or `i` closes it, `y` also copies to
 the clipboard.
+
+## Tests
+
+```powershell
+.\test\run_tests.ps1                    # all tests
+.\test\run_tests.ps1 render_tests.vim   # one file
+```
+
+`$env:VIMPRG` selects the Vim to test. The tests use a `%LOCALAPPDATA%` of
+their own, so they don't touch Windows Terminal's settings.

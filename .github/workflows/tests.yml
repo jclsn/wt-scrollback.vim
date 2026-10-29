@@ -1,0 +1,29 @@
+name: tests
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  windows:
+    name: windows (vim ${{ matrix.vim }})
+    runs-on: windows-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        vim:
+          - nightly
+          - v9.1.0000
+    steps:
+      - name: Setup Vim
+        uses: rhysd/action-setup-vim@v1
+        id: vim
+        with:
+          version: ${{ matrix.vim }}
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Run tests
+        shell: powershell
+        run: |
+          $env:VIMPRG = '${{ steps.vim.outputs.executable }}'
+          & $env:VIMPRG --version
+          .\test\run_tests.ps1
