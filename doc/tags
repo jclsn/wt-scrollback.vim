@@ -1,11 +1,3 @@
 :WtScrollbackSetup	wt-scrollback.txt	/*:WtScrollbackSetup*
-g:wt_scrollback_check	wt-scrollback.txt	/*g:wt_scrollback_check*
-g:wt_scrollback_keys	wt-scrollback.txt	/*g:wt_scrollback_keys*
 wt-scrollback	wt-scrollback.txt	/*wt-scrollback*
-wt-scrollback-config	wt-scrollback.txt	/*wt-scrollback-config*
-wt-scrollback-internals	wt-scrollback.txt	/*wt-scrollback-internals*
-wt-scrollback-intro	wt-scrollback.txt	/*wt-scrollback-intro*
-wt-scrollback-setup	wt-scrollback.txt	/*wt-scrollback-setup*
-wt-scrollback-tab-title	wt-scrollback.txt	/*wt-scrollback-tab-title*
-wt-scrollback-usage	wt-scrollback.txt	/*wt-scrollback-usage*
 wt-scrollback.txt	wt-scrollback.txt	/*wt-scrollback.txt*

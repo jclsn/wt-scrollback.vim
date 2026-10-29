@@ -1,166 +1,72 @@
 *wt-scrollback.txt*	Vim as Windows Terminal's scrollback pager
 
-Author: Jan Claußen
-Requires: Vim 9.1 or later with |+vim9script| and |+textprop|, Windows
-	  Terminal (tested with 1.24), Windows PowerShell (comes with Windows)
+Requires Vim 9.1 with |+vim9script| and |+textprop|, Windows Terminal (tested
+with 1.24) and Windows PowerShell.
 
-==============================================================================
-CONTENTS						*wt-scrollback*
+						*wt-scrollback*
+Windows Terminal's scrollback opens in Vim with ctrl+shift+h, over the
+current pane and with its colors, view, cursor and font size as on screen,
+also of a pane running Vim or ssh.
 
-	1. Introduction ............... |wt-scrollback-intro|
-	2. Setup ...................... |wt-scrollback-setup|
-	3. Usage ...................... |wt-scrollback-usage|
-	4. How it works ............... |wt-scrollback-internals|
-	5. Configuration .............. |wt-scrollback-config|
-	6. Tab title .................. |wt-scrollback-tab-title|
-
-==============================================================================
-1. Introduction					*wt-scrollback-intro*
-
-wt-scrollback.vim opens Windows Terminal's scrollback (by default with
-ctrl+shift+h) in Vim so it looks exactly like the pane you were just on:
-
-- every cell keeps the colors and attributes the terminal used, including
-  true color, bold, italic, underline and strikethrough
-- the font size is the pane's, also when it was zoomed
-- the first line on the pane's screen is the first line in Vim
-- the cursor sits on the same cell it was on in the pane, also when a
-  program like Vim was running there
-
-It opens as a zoomed pane on top of the current tab, and closing it brings
-the pane back. The pager runs with its own vimrc and without any plugins, so
-neither your vimrc nor other plugins can change how the scrollback looks. It
-also works for ssh sessions, as the pager always runs locally.
-
-==============================================================================
-2. Setup					*wt-scrollback-setup*
-
-When Vim starts inside Windows Terminal, the plugin checks whether the
-terminal's settings.json already uses it. If not, it asks whether it should
-configure Windows Terminal:
-
-	Yes		Adds the action, the key binding and the pager profile
-			to settings.json. Windows Terminal picks up the change
-			by itself.
-	No		Does nothing, you will be asked again next time.
-	Never ask again	Does nothing and stops asking.
-
-Nothing happens outside of Windows Terminal ($WT_SESSION is not set), in the
-GUI, or when no settings.json exists. settings.json is looked up in the
-package folder of Windows Terminal, then of Windows Terminal Preview, then
-in %LOCALAPPDATA%\Microsoft\Windows Terminal (unpackaged installs).
-
-When configuring, settings.json is first copied to
-settings.json.{timestamp}.bak. Three entries are added at the end of their
-lists, so they win over earlier ones; the rest of the file, comments
-included, stays as it is:
-
-- a hidden profile "wt-scrollback.vim" that runs the pager: >
-	"C:\path\to\vim.exe" -N -u "...\wt-scrollback.vim\pager.vim"
-<  The Vim that ran the setup is used. The profile closes on exit, has a
-  block cursor and no bell, and its tab title is "Scrollback".
-- an action "Open scrollback in Vim" (id "User.WtScrollback") that selects
-  and copies the whole buffer as HTML, splits the pane with the pager
-  profile and zooms it
-- a key binding for that action, see |g:wt_scrollback_keys|
-
-It also turns off Windows Terminal's pane animations ("disableAnimations":
-true), so the pager appears at once instead of sliding up from the bottom
-with its focus border. This is left alone when settings.json already sets
-"disableAnimations" either way.
-
-The helper the pager needs is built right away, so the first scrollback
-opens without waiting for it.
+	q, i	Close the pager.
+	y	Yank, also to the clipboard.
 
 						*:WtScrollbackSetup*
 :WtScrollbackSetup
-	Check and configure Windows Terminal right now, also after "Never ask
-	again". Reports what it found when nothing needs to be done.
+	Adds the settings below to Windows Terminal's settings.json, which
+	Windows Terminal loads by itself. The old file is kept as {file}.bak,
+	comments and the rest of the file stay as they are.
 
-==============================================================================
-3. Usage					*wt-scrollback-usage*
+settings.json: >
+	"disableAnimations": true,
+	"actions": [
+	    {
+	        "command": {
+	            "action": "multipleActions",
+	            "actions": [
+	                { "action": "selectAll" },
+	                { "action": "copy", "singleLine": false,
+	                  "copyFormatting": "html" },
+	                { "action": "splitPane", "split": "down", "size": 0.2,
+	                  "profile": "{7b7965fa-a70a-5652-bcf0-a02e57f39683}" },
+	                { "action": "togglePaneZoom" }
+	            ]
+	        },
+	        "id": "User.WtScrollback",
+	        "name": "Open scrollback in Vim"
+	    }
+	],
+	"keybindings": [
+	    { "id": "User.WtScrollback", "keys": "ctrl+shift+h" }
+	],
+	"profiles": {
+	    "list": [
+	        {
+	            "name": "wt-scrollback.vim",
+	            "guid": "{7b7965fa-a70a-5652-bcf0-a02e57f39683}",
+	            "hidden": true,
+	            "commandline": "\"C:\\...\\vim.exe\" -N
+	                -u \"C:\\...\\wt-scrollback.vim\\pager.vim\"",
+	            "closeOnExit": "always",
+	            "cursorShape": "filledBox",
+	            "bellStyle": "none",
+	            "suppressApplicationTitle": true,
+	            "tabTitle": "Scrollback"
+	        }
+	    ]
+	}
+<Windows Terminal has no scrollback pager setting, so the action copies the
+whole buffer as HTML and opens the pager's hidden profile in a zoomed pane.
+Without animations the pager appears at once. Old settings.json files have
+the key binding as "keys" in the action.
 
-Open the scrollback with ctrl+shift+h, or "Open scrollback in Vim" from the
-command palette. A purple SCROLLBACK label and the line position are shown in
-the bottom row, which Vim needs for its command line anyway.
+The pager runs a helper that reads the HTML from the clipboard and empties
+it, and finds the pane by reading the other panes' consoles. Its C# source
+is in wt-scrollback.ps1, which builds it into
+%LOCALAPPDATA%\wt-scrollback.vim\wt-scrollback.exe on first use.
 
-	q, i		Close the pager.
-	y		Yank as usual. Everything yanked is also copied to the
-			system clipboard.
-
-Everything else is normal Vim, including the mouse. 'virtualedit' is "all",
-so the cursor can be anywhere a terminal cursor can be, also past the end of
-a line. Lines that were wrapped in the terminal are wrapped in Vim as well.
-
-The copy that opens the pager replaces the clipboard. The pager empties it
-again once it has read the scrollback.
-
-==============================================================================
-4. How it works					*wt-scrollback-internals*
-
-Windows Terminal has no setting for a scrollback pager and doesn't pass the
-scrollback or the cursor position to a program. So the action copies the
-whole buffer as HTML, which is the only export that keeps the colors, and
-opens the pager in a new pane that it zooms.
-
-The pager runs a small helper that reads that HTML from the clipboard and
-turns it into lines and highlight ranges, which the pager applies as
-|text-properties|. Vim's background is the one most of the captured cells
-have, and its foreground the one most used on it. That is the terminal's
-own unless a program like Vim filled the screen with its own background, so
-the space around and after the text always matches the screen. The helper also reads the cursor and the visible rows of
-the other panes of the same Windows Terminal process: every pane is a
-console, and its buffer mirrors what the pane shows. The pane whose rows
-match the end of the copied text is the one the pager was opened from; its
-first visible row becomes the first line in the window and its cursor the
-cursor in Vim. When no pane matches, the pager shows the end of the
-scrollback.
-
-The pager also uses the font size of the pane's profile, which Windows
-Terminal puts into the environment of the shell it starts (WT_PROFILE_ID).
-When the "wt-scrollback.vim" profile's size differs, the pager sets it in
-settings.json, and Windows Terminal applies it to the open pager right away.
-So after changing a profile's font size, the next scrollback adjusts by
-itself, and settings.json is only written when the size actually changes.
-
-Zooming a pane (ctrl+=, ctrl+mouse wheel) isn't saved anywhere, but it
-changes how many cells fit into the pane. So the pager compares the pane's
-columns and rows with its own and works out the zoomed size from that. When
-the pane didn't fill the tab (it was split side by side, say), its size
-tells nothing and the profile's size is used.
-
-The helper needs Win32 calls Vim script can't make and has to parse
-megabytes of HTML quickly. Its C# source is in wt-scrollback.ps1, which
-compiles it into %LOCALAPPDATA%\wt-scrollback.vim\wt-scrollback.exe. The
-pager runs the exe directly and only goes through the script when the exe is
-missing or older than the script.
-
-When the pane starts, Windows Terminal answers a mode query that Win32 Vim
-doesn't recognize and would receive as typed keys. The pager drops such
-answers.
-
-==============================================================================
-5. Configuration				*wt-scrollback-config*
-
-						*g:wt_scrollback_check*
-g:wt_scrollback_check		boolean (default: true)
-	Set to false to never check Windows Terminal's configuration on
-	startup. |:WtScrollbackSetup| still works. >
-		g:wt_scrollback_check = false
-<
-						*g:wt_scrollback_keys*
-g:wt_scrollback_keys		string (default: "ctrl+shift+h")
-	The key binding the setup adds, in Windows Terminal's notation. >
-		g:wt_scrollback_keys = 'alt+shift+s'
-<	To change it later, edit the "User.WtScrollback" binding in Windows
-	Terminal's settings.
-
-==============================================================================
-6. Tab title					*wt-scrollback-tab-title*
-
-The pager profile sets the tab title to "Scrollback" and keeps Vim from
-changing it, so the tab shows that while the pager is open. Change
-"tabTitle" of the "wt-scrollback.vim" profile in settings.json to show
-something else.
+The pager sets the font size of the pane, of its profile or zoomed with
+ctrl+= or ctrl+wheel, on its own profile in settings.json. Windows Terminal
+applies it to the open pager, from then on it opens with it.
 
  vim:tw=78:ts=8:noet:ft=help:norl:
