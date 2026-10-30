@@ -4,7 +4,7 @@ Use Vim as [Windows Terminal](https://github.com/microsoft/terminal)'s
 scrollback pager, with the colors, view, cursor and font size of the pane, also
 of a pane running Vim or ssh.
 
-Requires Vim 9.1 with `+vim9script` and `+textprop`, Windows Terminal (tested
+Requires Vim 9.2 with `+vim9script` and `+textprop`, Windows Terminal (tested
 with 1.24) and Windows PowerShell.
 
 ## Setup

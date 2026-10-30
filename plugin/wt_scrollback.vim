@@ -1,5 +1,5 @@
-if !has('vim9script') || !has('patch-9.1.0')
-  " Needs Vim 9.1
+if !has('vim9script') || !has('patch-9.2.0')
+  " Needs Vim 9.2
   finish
 endif
 

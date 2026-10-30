@@ -1,6 +1,6 @@
 *wt-scrollback.txt*	Vim as Windows Terminal's scrollback pager
 
-Requires Vim 9.1 with |+vim9script| and |+textprop|, Windows Terminal (tested
+Requires Vim 9.2 with |+vim9script| and |+textprop|, Windows Terminal (tested
 with 1.24) and Windows PowerShell.
 
 						*wt-scrollback*
