@@ -27,7 +27,8 @@ settings.json: >
 	                { "action": "selectAll" },
 	                { "action": "copy", "singleLine": false,
 	                  "copyFormatting": "html" },
-	                { "action": "scrollToBottom" },
+	                { "action": "scrollToMark", "direction": "last" },
+	                { "action": "scrollToMark", "direction": "last" },
 	                { "action": "splitPane", "split": "down", "size": 0.2,
 	                  "profile": "{7b7965fa-a70a-5652-bcf0-a02e57f39683}" },
 	                { "action": "togglePaneZoom" }
@@ -58,7 +59,8 @@ settings.json: >
 	}
 <Windows Terminal has no scrollback pager setting, so the action copies the
 whole buffer as HTML and opens the pager's hidden profile in a zoomed pane.
-Selecting all scrolls the pane to the top, so it scrolls back down before.
+Selecting all scrolls the pane to the top, so it scrolls back down before:
+to the last prompt mark, and from there to the bottom.
 Without animations the pager appears at once. Old settings.json files have
 the key binding as "keys" in the action.
 
