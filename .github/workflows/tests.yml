@@ -22,7 +22,7 @@ jobs:
         with:
           version: ${{ matrix.vim }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Run tests
         shell: powershell
         run: |
