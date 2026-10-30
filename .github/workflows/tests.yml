@@ -12,7 +12,9 @@ jobs:
       matrix:
         vim:
           - nightly
-          - v9.2.0
+          # The first Vim 9.2 build that vim-win32-installer has with a patch
+          # number in four digits, which action-setup-vim needs
+          - v9.2.0010
     steps:
       - name: Setup Vim
         uses: rhysd/action-setup-vim@v1
