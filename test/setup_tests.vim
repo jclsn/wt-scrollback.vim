@@ -50,9 +50,9 @@ def g:Test_Setup()
   assert_equal('Windows PowerShell', json.profiles.list[0].name)
 
   var action = Action(json)
-  assert_equal(['selectAll', 'copy', 'splitPane', 'togglePaneZoom'],
+  assert_equal(['selectAll', 'copy', 'scrollToBottom', 'splitPane', 'togglePaneZoom'],
     action.command.actions->mapnew((_, a) => a.action))
-  assert_equal(settings.PROFILE_GUID, action.command.actions[2].profile)
+  assert_equal(settings.PROFILE_GUID, action.command.actions[3].profile)
   assert_false(action->has_key('keys'))
   assert_equal({id: 'User.WtScrollback', keys: 'ctrl+shift+h'}, json.keybindings[-1])
   assert_true(json.disableAnimations)

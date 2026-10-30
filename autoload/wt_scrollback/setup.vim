@@ -3,9 +3,10 @@ vim9script
 # Configure Windows Terminal to use pager.vim as the scrollback pager.
 #
 # Windows Terminal has no scrollback pager setting.  So this adds an action
-# that copies the whole buffer as HTML and opens the pager's hidden profile
-# in a zoomed pane, a key binding for it and the profile, and turns off pane
-# animations, so the pager appears at once.
+# that copies the whole buffer as HTML, scrolls back down (selecting all
+# scrolls to the top) and opens the pager's hidden profile in a zoomed pane,
+# a key binding for it and the profile, and turns off pane animations, so the
+# pager appears at once.
 
 import './helper.vim'
 import './settings.vim'
@@ -53,6 +54,7 @@ def ActionJson(with_keys: bool): string
     '        [',
     '            { "action": "selectAll" },',
     '            { "action": "copy", "singleLine": false, "copyFormatting": "html" },',
+    '            { "action": "scrollToBottom" },',
     $'            {{ "action": "splitPane", "split": "down", "size": 0.2, "profile": "{settings.PROFILE_GUID}" }},',
     '            { "action": "togglePaneZoom" }',
     '        ]',
